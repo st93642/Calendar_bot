@@ -9,6 +9,7 @@ gem 'icalendar', '~> 2.7'
 gem 'rufus-scheduler', '~> 3.9.0'
 gem 'dotenv', '~> 2.8'
 gem 'mutex_m'
+gem 'redis', '~> 5.0'
 
 # Logging
 gem 'logger'

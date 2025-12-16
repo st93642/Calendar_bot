@@ -19,6 +19,16 @@ module Config
 
   # Storage Configuration
   EVENTS_STORAGE_PATH = ENV.fetch('EVENTS_STORAGE_PATH', './events.json')
+  
+  # Redis Configuration (for Heroku)
+  # REDIS_URL is automatically set by Heroku Redis addon
+  REDIS_URL = ENV.fetch('REDIS_URL', nil)
+  
+  # USE_REDIS determines if Redis should be used:
+  # 1. If REDIS_URL is set (e.g., by Heroku addon), Redis is used
+  # 2. If USE_REDIS=true is explicitly set, Redis is used (requires REDIS_URL)
+  # 3. Otherwise, file-based storage is used
+  USE_REDIS = !REDIS_URL.nil? || ENV.fetch('USE_REDIS', 'false').downcase == 'true'
 
   # Logging Configuration
   LOG_LEVEL = ENV.fetch('LOG_LEVEL', 'info').to_sym
@@ -47,9 +57,31 @@ module Config
     end
 
     def initialize_storage
-      ensure_storage_directory
-      unless storage_initialized?
-        File.write(events_storage_path, '[]')
+      if USE_REDIS
+        logger.info("Using Redis storage")
+      else
+        logger.info("Using file-based storage: #{events_storage_path}")
+        ensure_storage_directory
+        unless storage_initialized?
+          File.write(events_storage_path, '[]')
+        end
+      end
+    end
+
+    def create_redis_client
+      return nil unless USE_REDIS || REDIS_URL
+      
+      begin
+        require 'redis'
+        redis_url = REDIS_URL || 'redis://localhost:6379/0'
+        logger.info("Connecting to Redis at #{redis_url.gsub(/:[^:@]+@/, ':***@')}")
+        Redis.new(url: redis_url)
+      rescue LoadError
+        logger.error("Redis gem not available. Install it with: gem install redis")
+        nil
+      rescue => e
+        logger.error("Failed to connect to Redis: #{e.message}")
+        nil
       end
     end
   end

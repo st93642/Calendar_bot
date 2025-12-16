@@ -2,6 +2,7 @@ require 'json'
 require 'mutex_m'
 require 'securerandom'
 require 'logger'
+require_relative 'storage_adapter'
 
 # Config that works for both tests and production
 module CalendarBot
@@ -55,11 +56,13 @@ module CalendarBot
       'required' => ['id', 'title', 'start_time', 'end_time', 'custom']
     }
 
-    def initialize(storage_path = nil)
+    def initialize(storage_path = nil, storage_adapter = nil)
       @storage_path = storage_path || Config.events_storage_path
       @mutex = Mutex.new
-      ensure_storage_exists
       @logger = Config.logger
+      
+      # Use provided adapter or create default file adapter
+      @storage_adapter = storage_adapter || FileStorageAdapter.new(@storage_path, @logger)
     end
 
     def all_events
@@ -222,34 +225,12 @@ module CalendarBot
       @mutex.synchronize(&block)
     end
 
-    def ensure_storage_exists
-      Config.ensure_storage_directory
-      unless File.exist?(@storage_path)
-        write_events([])
-      end
-    end
-
     def read_events
-      begin
-        content = File.read(@storage_path)
-        JSON.parse(content) || []
-      rescue JSON::ParserError => e
-        @logger.error("Invalid JSON in events storage: #{e.message}")
-        []
-      rescue Errno::ENOENT
-        []
-      end
+      @storage_adapter.read_events
     end
 
     def write_events(events)
-      begin
-        temp_path = "#{@storage_path}.tmp"
-        File.write(temp_path, JSON.pretty_generate(events))
-        File.rename(temp_path, @storage_path)
-      rescue => e
-        @logger.error("Failed to write events: #{e.message}")
-        raise
-      end
+      @storage_adapter.write_events(events)
     end
 
     def generate_id

@@ -71,14 +71,20 @@ BROADCAST_TARGET_GROUPS=-1001234567890
    heroku create your-calendar-bot
    ```
 
-2. **Set environment variables:**
+2. **Add Heroku Redis for persistent storage:**
+   ```bash
+   heroku addons:create heroku-redis:mini -a your-calendar-bot
+   ```
+   
+   This automatically sets the `REDIS_URL` environment variable. The bot will detect this and use Redis for persistent event storage instead of ephemeral file storage.
+
+3. **Set environment variables:**
    ```bash
    heroku config:set TELEGRAM_BOT_TOKEN=your_bot_token_here
-   heroku config:set EVENTS_STORAGE_PATH=/tmp/events.json
    heroku config:set LOG_LEVEL=info
    ```
 
-3. **Optional - Enable broadcast reminders:**
+4. **Optional - Enable broadcast reminders:**
    ```bash
    heroku config:set BROADCAST_ENABLED=true
    heroku config:set BROADCAST_CHECK_INTERVAL=30
@@ -86,26 +92,45 @@ BROADCAST_TARGET_GROUPS=-1001234567890
    heroku config:set BROADCAST_TARGET_GROUPS=-1001234567890
    ```
 
-4. **Deploy to Heroku:**
+5. **Deploy to Heroku:**
    ```bash
    git push heroku main
    ```
 
-5. **Scale worker dyno:**
+6. **Scale worker dyno:**
    ```bash
    heroku ps:scale worker=1
    ```
 
-6. **View logs:**
+7. **View logs:**
    ```bash
    heroku logs --tail
    ```
 
+### Storage Configuration
+
+The bot automatically detects and uses the best available storage:
+
+- **Redis (Recommended for Heroku)**: When `REDIS_URL` is set (automatically by Heroku Redis addon), the bot stores events in Redis key-value storage. This provides persistent storage that survives dyno restarts.
+  
+- **File-based (Local development)**: When Redis is not available, the bot falls back to file-based storage using the path specified in `EVENTS_STORAGE_PATH`.
+
+#### Heroku Redis Plans
+
+- **mini** ($3/month): 25 MB storage - Suitable for most calendar bots
+- **hobby-dev** (Free): 25 MB storage - Good for testing, but limited availability
+- **premium-0** ($15/month): 100 MB storage - For bots with large calendars
+
+To check your Redis status:
+```bash
+heroku redis:info -a your-calendar-bot
+```
+
 ### Important Notes
 
 - The bot runs as a **worker** dyno (not web), so it doesn't need a port
-- Events are stored in `/tmp/events.json` on Heroku (temporary - resets on dyno restart)
-- For persistent storage, consider using [Heroku Postgres](https://elements.heroku.com/addons/heroku-postgresql) or [AWS S3](https://elements.heroku.com/addons/bucketeer) addons
+- **With Heroku Redis**: Events persist across dyno restarts and redeploys
+- **Without Redis**: Events stored in `/tmp/events.json` are ephemeral and reset on dyno restart
 - The `Procfile` and `runtime.txt` files are already configured
 
 ### Finding Group Chat IDs
@@ -140,6 +165,7 @@ Calendar_bot/
 ├── bot.rb                      # Main bot file
 ├── lib/
 │   ├── event_store.rb         # Event storage and management
+│   ├── storage_adapter.rb     # Storage backend abstraction
 │   ├── ics_importer.rb        # ICS calendar import
 │   ├── bot_helpers.rb         # Formatting helpers
 │   └── broadcast_scheduler.rb # Reminder scheduler
@@ -149,8 +175,17 @@ Calendar_bot/
 ├── Gemfile                     # Ruby dependencies
 ├── Procfile                    # Heroku worker configuration
 ├── runtime.txt                 # Ruby version for Heroku
+├── STORAGE.md                  # Storage configuration guide
 └── .env.example               # Environment variable template
 ```
+
+## Storage Configuration
+
+The bot supports two storage backends:
+- **File-based storage** (default) - For local development
+- **Redis key-value storage** - For Heroku and production deployments
+
+See [STORAGE.md](STORAGE.md) for detailed configuration instructions.
 
 ## License
 
