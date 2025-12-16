@@ -126,20 +126,44 @@ module CalendarBot
       when '/help'
         handle_help(bot, message)
       when '/calendar'
-        handle_calendar(bot, message)
+        if is_admin?(bot, message)
+          handle_calendar(bot, message)
+        else
+          send_forbidden(bot, message)
+        end
       when '/events'
-        handle_list_events(bot, message)
+        if is_admin?(bot, message)
+          handle_list_events(bot, message)
+        else
+          send_forbidden(bot, message)
+        end
       when '/import'
         handle_import_help(bot, message)
       when /^(\/import\s+)(https?:\/\/.+)/
         url = $2.strip
         if is_admin?(bot, message)
+          # Delete the user's message to hide the URL from the group
+          begin
+            bot.api.delete_message(chat_id: message.chat.id, message_id: message.message_id)
+          rescue => e
+            @logger.warn("Could not delete import message: #{e.message}")
+          end
           handle_import_url(bot, message, url)
         else
           send_forbidden(bot, message)
         end
       when '/add_event'
-        handle_add_event(bot, message)
+        if is_admin?(bot, message)
+          # Delete the command message to keep conversation private
+          begin
+            bot.api.delete_message(chat_id: message.chat.id, message_id: message.message_id)
+          rescue => e
+            @logger.warn("Could not delete add_event message: #{e.message}")
+          end
+          handle_add_event(bot, message)
+        else
+          send_forbidden(bot, message)
+        end
       when /^(\/delete_event\s+)(.+)/
         id = $2.strip
         if is_admin?(bot, message)
@@ -509,6 +533,13 @@ module CalendarBot
     
     def handle_conversation_step(bot, message, user_key)
       state = @user_states[user_key]
+      
+      # Delete user's message to keep event details private
+      begin
+        bot.api.delete_message(chat_id: message.chat.id, message_id: message.message_id)
+      rescue => e
+        @logger.warn("Could not delete conversation message: #{e.message}")
+      end
       
       if message.text == '/cancel'
         @user_states.delete(user_key)
