@@ -204,6 +204,9 @@ module CalendarBot
       # For now, we'll use UTC as default
       timezone = nil
       
+      # Track message IDs for auto-deletion
+      message_ids = []
+      
       # Get all events
       all_events = @event_store.all_events
       
@@ -230,24 +233,31 @@ module CalendarBot
         response = "📅 *Upcoming Events*\n\n" +
                    "No events scheduled for the next 7 days.\n\n" +
                    "Use /import to add events from an ICS calendar."
-        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
+        msg = bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
+        message_ids << msg['result']['message_id']
       else
         # Send events one by one to avoid message length issues
         header = "📅 Upcoming Events (next 7 days)\n\nShowing #{display_events.length} of #{upcoming_events.length} event#{upcoming_events.length == 1 ? '' : 's'}\n"
-        bot.api.send_message(chat_id: message.chat.id, text: header)
+        msg = bot.api.send_message(chat_id: message.chat.id, text: header)
+        message_ids << msg['result']['message_id']
         
         display_events.each_with_index do |event, index|
           event_text = format_event_plain(event, index + 1, timezone)
-          bot.api.send_message(chat_id: message.chat.id, text: event_text)
+          msg = bot.api.send_message(chat_id: message.chat.id, text: event_text)
+          message_ids << msg['result']['message_id']
         end
         
         # Add pagination note if there are more events
         if upcoming_events.length > 5
           remaining = upcoming_events.length - 5
           note = "\nUse /events to see all #{upcoming_events.length} events"
-          bot.api.send_message(chat_id: message.chat.id, text: note)
+          msg = bot.api.send_message(chat_id: message.chat.id, text: note)
+          message_ids << msg['result']['message_id']
         end
       end
+      
+      # Schedule deletion of all messages after 3 minutes
+      schedule_message_deletion(bot, message.chat.id, message_ids, 180)
     rescue StandardError => e
       @logger.error("Calendar command error: #{e.message}")
       @logger.debug(e.backtrace.join("\n"))
@@ -260,15 +270,21 @@ module CalendarBot
     def handle_list_events(bot, message)
       events = @event_store.all_events
       
+      # Track message IDs for auto-deletion
+      message_ids = []
+      
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
+        msg = bot.api.send_message(chat_id: message.chat.id, text: response)
+        message_ids << msg['result']['message_id']
       else
         # Sort events by start time
         events.sort_by! { |event| Time.parse(event['start_time']) }
         
         # Send header first
         header = "📅 Events (#{events.length}):\n"
-        bot.api.send_message(chat_id: message.chat.id, text: header)
+        msg = bot.api.send_message(chat_id: message.chat.id, text: header)
+        message_ids << msg['result']['message_id']
         
         # Send each event as a separate message to avoid length/parsing issues
         events.each_with_index do |event, i|
@@ -281,9 +297,13 @@ module CalendarBot
           event_text = event_parts.join("\n")
           
           # Send as plain text to avoid Markdown parsing issues with special characters
-          bot.api.send_message(chat_id: message.chat.id, text: event_text)
+          msg = bot.api.send_message(chat_id: message.chat.id, text: event_text)
+          message_ids << msg['result']['message_id']
         end
       end
+      
+      # Schedule deletion of all messages after 3 minutes
+      schedule_message_deletion(bot, message.chat.id, message_ids, 180)
     end
 
     def handle_import_help(bot, message)
@@ -671,6 +691,20 @@ module CalendarBot
         is_admin = ['creator', 'administrator'].include?(status)
         
         @admin_cache[cache_key] = { is_admin: is_admin, timestamp: Time.now }
+    
+    # Schedule message deletion after specified delay
+    def schedule_message_deletion(bot, chat_id, message_ids, delay_seconds)
+      Thread.new do
+        sleep(delay_seconds)
+        message_ids.each do |msg_id|
+          begin
+            bot.api.delete_message(chat_id: chat_id, message_id: msg_id)
+          rescue => e
+            @logger.debug("Could not delete message #{msg_id}: #{e.message}")
+          end
+        end
+      end
+    end
         is_admin
       rescue StandardError => e
         @logger.error("Admin check failed: #{e.message}")
