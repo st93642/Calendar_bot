@@ -1,11 +1,15 @@
 #!/usr/bin/env ruby
 
 require 'telegram/bot'
+require_relative 'config/config'
 require_relative 'lib/event_store'
 require_relative 'lib/ics_importer'
+require_relative 'lib/bot_helpers'
 
 module CalendarBot
   class Bot
+    include BotHelpers
+    
     def initialize
       Config.initialize_storage
       @logger = Config.logger
@@ -64,6 +68,8 @@ module CalendarBot
         handle_start(bot, message)
       when '/help'
         handle_help(bot, message)
+      when '/calendar'
+        handle_calendar(bot, message)
       when '/events'
         handle_list_events(bot, message)
       when '/import'
@@ -80,6 +86,7 @@ module CalendarBot
       response = "Welcome to Calendar Bot! 📅\n\n" +
                  "This bot can help you manage calendar events.\n\n" +
                  "Available commands:\n" +
+                 "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
                  "/import <URL> - Import ICS calendar from URL\n" +
                  "/help - Show this help message\n\n" +
@@ -89,11 +96,81 @@ module CalendarBot
 
     def handle_help(bot, message)
       response = "📅 Calendar Bot Commands:\n\n" +
+                 "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
                  "/import <URL> - Import ICS calendar from URL\n" +
                  "/help - Show this help message\n\n" +
+                 "💡 The /calendar command shows events happening in the next 7 days, limited to 10 entries.\n\n" +
                  "Current events: #{@event_store.count}"
       bot.api.send_message(chat_id: message.chat.id, text: response)
+    end
+
+    def handle_calendar(bot, message)
+      # Get timezone from message context if available (future enhancement)
+      # For now, we'll use UTC as default
+      timezone = nil
+      
+      # Get all events
+      all_events = @event_store.all_events
+      
+      # Filter to upcoming events (next 7 days)
+      now = Time.now.utc
+      seven_days_from_now = now + (7 * 24 * 60 * 60)
+      
+      upcoming_events = all_events.select do |event|
+        begin
+          event_start = Time.parse(event['start_time']).utc
+          event_start >= now && event_start <= seven_days_from_now
+        rescue ArgumentError
+          false
+        end
+      end
+      
+      # Sort by start time
+      upcoming_events.sort_by! { |event| Time.parse(event['start_time']) }
+      
+      # Limit to 10 events
+      display_events = upcoming_events.take(10)
+      
+      if display_events.empty?
+        response = "📅 *Upcoming Events*\n\n" +
+                   "No events scheduled for the next 7 days\\.\n\n" +
+                   "Use /import to add events from an ICS calendar\\."
+        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'MarkdownV2')
+      else
+        # Build response with formatted events
+        response_parts = ["📅 *Upcoming Events* \\(next 7 days\\)\n"]
+        
+        display_events.each_with_index do |event, index|
+          response_parts << ""
+          response_parts << format_event(event, index + 1, timezone)
+        end
+        
+        # Add pagination note if there are more events
+        if upcoming_events.length > 10
+          remaining = upcoming_events.length - 10
+          response_parts << ""
+          response_parts << "\\.\\.\\. and #{remaining} more event#{remaining == 1 ? '' : 's'}"
+        end
+        
+        response = response_parts.join("\n")
+        
+        begin
+          bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'MarkdownV2')
+        rescue Telegram::Bot::Exceptions::ResponseError => e
+          # If markdown parsing fails, send plain text
+          @logger.error("Markdown parsing failed: #{e.message}")
+          plain_response = response.gsub(/\\/, '')
+          bot.api.send_message(chat_id: message.chat.id, text: plain_response)
+        end
+      end
+    rescue StandardError => e
+      @logger.error("Calendar command error: #{e.message}")
+      @logger.debug(e.backtrace.join("\n"))
+      bot.api.send_message(
+        chat_id: message.chat.id,
+        text: "❌ Error retrieving calendar events. Please try again later."
+      )
     end
 
     def handle_list_events(bot, message)

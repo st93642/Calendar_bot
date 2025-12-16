@@ -1,6 +1,7 @@
 require 'json'
 require 'mutex_m'
 require 'securerandom'
+require 'logger'
 
 # Config that works for both tests and production
 module CalendarBot
