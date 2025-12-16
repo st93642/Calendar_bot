@@ -336,8 +336,8 @@ RSpec.describe CalendarBot::IcsImporter do
       
       # Check that the existing event was updated
       updated_event = event_store.find_by_id(existing_event['id'])
-      expect(updated_event['description']).to eq('Updated description')
       expect(updated_event['imported_from_url']).to eq('http://example.com/calendar.ics')
+      expect(updated_event['description']).to be_nil  # Description field is not stored
     end
 
     it 'avoids creating duplicates' do

@@ -95,18 +95,8 @@ RSpec.describe CalendarBot::BotHelpers do
       expect(result).to include('1\\.')  # Escaped number
       expect(result).to include('Team Meeting')
       expect(result).to include('🕒')
-      expect(result).to include('📝')
-      expect(result).to include('Weekly sync meeting')
       expect(result).to include('🏷️')
       expect(result).to include('Custom event')
-    end
-
-    it 'formats event without description' do
-      event_no_desc = event.merge('description' => nil)
-      result = format_event(event_no_desc, 1)
-      
-      expect(result).to include('Team Meeting')
-      expect(result).not_to include('📝')
     end
 
     it 'formats imported event' do
@@ -117,15 +107,6 @@ RSpec.describe CalendarBot::BotHelpers do
       result = format_event(imported_event, 1)
       
       expect(result).to include('Imported from calendar')
-    end
-
-    it 'truncates long descriptions' do
-      long_desc = 'A' * 200
-      event_long = event.merge('description' => long_desc)
-      result = format_event(event_long, 1)
-      
-      # The ellipsis is escaped in markdown
-      expect(result).to include('\\.\\.\\.')
     end
   end
 
