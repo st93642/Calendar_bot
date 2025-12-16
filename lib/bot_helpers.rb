@@ -152,10 +152,8 @@ module CalendarBot
       # Description (if present and not nil)
       if event['description'] && !event['description'].to_s.strip.empty?
         desc = event['description'].to_s.strip
-        # Truncate descriptions for calendar view to keep it short and readable
-        if desc.length > 200
-          desc = desc[0..197] + "..."
-        end
+        # Truncate to 100 chars
+        desc = desc[0..97] + '...' if desc.length > 100
         lines << "📝 #{desc}"
       end
       
