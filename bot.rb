@@ -16,7 +16,11 @@ module CalendarBot
       ::Config.initialize_storage
       @logger = ::Config.logger
       @token = ::Config::TELEGRAM_BOT_TOKEN
-      @event_store = EventStore.new
+      
+      # Create storage adapter based on configuration
+      storage_adapter = create_storage_adapter
+      @event_store = EventStore.new(nil, storage_adapter)
+      
       @importer = IcsImporter.new(@event_store)
       @broadcast_scheduler = BroadcastScheduler.new(@event_store, @logger)
       
@@ -42,6 +46,21 @@ module CalendarBot
 
     private
 
+    def create_storage_adapter
+      if ::Config::USE_REDIS
+        redis_client = ::Config.create_redis_client
+        if redis_client && redis_client.ping == 'PONG'
+          @logger.info("✓ Using Redis storage adapter")
+          return CalendarBot::RedisStorageAdapter.new(redis_client, @logger)
+        else
+          @logger.warn("Redis not available, falling back to file storage")
+        end
+      end
+      
+      @logger.info("✓ Using file storage adapter: #{::Config.events_storage_path}")
+      CalendarBot::FileStorageAdapter.new(::Config.events_storage_path, @logger)
+    end
+
     def setup_signal_handlers
       Signal.trap('INT') { graceful_shutdown }
       Signal.trap('TERM') { graceful_shutdown }
@@ -57,7 +76,8 @@ module CalendarBot
       bot = Telegram::Bot::Client.new(@token)
       
       @logger.info('✓ Bot is ready and listening for messages')
-      @logger.info("Events storage: #{::Config.events_storage_path}")
+      storage_type = ::Config::USE_REDIS ? "Redis" : "File (#{::Config.events_storage_path})"
+      @logger.info("Events storage type: #{storage_type}")
       @logger.info("Total events in storage: #{@event_store.count}")
       
       # Setup and start broadcast scheduler
