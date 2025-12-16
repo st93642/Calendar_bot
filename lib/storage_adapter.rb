@@ -16,6 +16,12 @@ module CalendarBot
     def available?
       raise NotImplementedError, "#{self.class} must implement #available?"
     end
+
+    # Hook for initialization tasks (e.g., ensuring storage exists)
+    # Override in subclasses if needed
+    def initialize_storage
+      # Default: no-op
+    end
   end
 
   # File-based storage adapter (default for local development)
@@ -23,13 +29,14 @@ module CalendarBot
     def initialize(storage_path, logger)
       @storage_path = storage_path
       @logger = logger
-      ensure_storage_exists
+      initialize_storage
     end
 
     def read_events
       begin
         content = File.read(@storage_path)
-        JSON.parse(content) || []
+        return [] if content.nil? || content.strip.empty?
+        JSON.parse(content)
       rescue JSON::ParserError => e
         @logger.error("Invalid JSON in events storage: #{e.message}")
         []
@@ -53,15 +60,15 @@ module CalendarBot
       true # File storage is always available
     end
 
-    private
-
-    def ensure_storage_exists
+    def initialize_storage
       dir = File.dirname(@storage_path)
       Dir.mkdir(dir) unless Dir.exist?(dir)
       unless File.exist?(@storage_path)
         File.write(@storage_path, '[]')
       end
     end
+
+    private
   end
 
   # Redis-based storage adapter (for Heroku deployment)
@@ -76,11 +83,8 @@ module CalendarBot
     def read_events
       begin
         data = @redis.get(REDIS_KEY)
-        if data.nil? || data.empty?
-          []
-        else
-          JSON.parse(data)
-        end
+        return [] if data.nil?
+        JSON.parse(data)
       rescue JSON::ParserError => e
         @logger.error("Invalid JSON in Redis storage: #{e.message}")
         []

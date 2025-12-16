@@ -21,8 +21,14 @@ module Config
   EVENTS_STORAGE_PATH = ENV.fetch('EVENTS_STORAGE_PATH', './events.json')
   
   # Redis Configuration (for Heroku)
+  # REDIS_URL is automatically set by Heroku Redis addon
   REDIS_URL = ENV.fetch('REDIS_URL', nil)
-  USE_REDIS = ENV.fetch('USE_REDIS', 'false').downcase == 'true' || !REDIS_URL.nil?
+  
+  # USE_REDIS determines if Redis should be used:
+  # 1. If REDIS_URL is set (e.g., by Heroku addon), Redis is used
+  # 2. If USE_REDIS=true is explicitly set, Redis is used (requires REDIS_URL)
+  # 3. Otherwise, file-based storage is used
+  USE_REDIS = !REDIS_URL.nil? || ENV.fetch('USE_REDIS', 'false').downcase == 'true'
 
   # Logging Configuration
   LOG_LEVEL = ENV.fetch('LOG_LEVEL', 'info').to_sym

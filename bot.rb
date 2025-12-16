@@ -49,11 +49,16 @@ module CalendarBot
     def create_storage_adapter
       if ::Config::USE_REDIS
         redis_client = ::Config.create_redis_client
-        if redis_client && redis_client.ping == 'PONG'
-          @logger.info("✓ Using Redis storage adapter")
-          return CalendarBot::RedisStorageAdapter.new(redis_client, @logger)
+        if redis_client
+          redis_adapter = CalendarBot::RedisStorageAdapter.new(redis_client, @logger)
+          if redis_adapter.available?
+            @logger.info("✓ Using Redis storage adapter")
+            return redis_adapter
+          else
+            @logger.warn("Redis not available, falling back to file storage")
+          end
         else
-          @logger.warn("Redis not available, falling back to file storage")
+          @logger.warn("Redis client creation failed, falling back to file storage")
         end
       end
       

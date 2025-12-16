@@ -63,11 +63,6 @@ module CalendarBot
       
       # Use provided adapter or create default file adapter
       @storage_adapter = storage_adapter || FileStorageAdapter.new(@storage_path, @logger)
-      
-      # For file adapter, ensure storage exists
-      if @storage_adapter.is_a?(FileStorageAdapter)
-        ensure_storage_exists
-      end
     end
 
     def all_events
@@ -228,13 +223,6 @@ module CalendarBot
 
     def synchronize(&block)
       @mutex.synchronize(&block)
-    end
-
-    def ensure_storage_exists
-      Config.ensure_storage_directory
-      unless File.exist?(@storage_path)
-        write_events([])
-      end
     end
 
     def read_events
