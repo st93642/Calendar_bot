@@ -691,6 +691,16 @@ module CalendarBot
         is_admin = ['creator', 'administrator'].include?(status)
         
         @admin_cache[cache_key] = { is_admin: is_admin, timestamp: Time.now }
+        is_admin
+      rescue StandardError => e
+        @logger.error("Admin check failed: #{e.message}")
+        false
+      end
+    end
+    
+    def send_forbidden(bot, message)
+      bot.api.send_message(chat_id: message.chat.id, text: "⛔ You must be an admin to use this command.")
+    end
     
     # Schedule message deletion after specified delay
     def schedule_message_deletion(bot, chat_id, message_ids, delay_seconds)
@@ -704,16 +714,6 @@ module CalendarBot
           end
         end
       end
-    end
-        is_admin
-      rescue StandardError => e
-        @logger.error("Admin check failed: #{e.message}")
-        false
-      end
-    end
-    
-    def send_forbidden(bot, message)
-      bot.api.send_message(chat_id: message.chat.id, text: "⛔ You must be an admin to use this command.")
     end
 
     # --- Broadcast Scheduler Commands ---
