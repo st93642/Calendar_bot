@@ -6,6 +6,7 @@ require_relative 'config/config'
 require_relative 'lib/event_store'
 require_relative 'lib/ics_importer'
 require_relative 'lib/bot_helpers'
+require_relative 'lib/broadcast_scheduler'
 
 module CalendarBot
   class Bot
@@ -17,6 +18,7 @@ module CalendarBot
       @token = ::Config::TELEGRAM_BOT_TOKEN
       @event_store = EventStore.new
       @importer = IcsImporter.new(@event_store)
+      @broadcast_scheduler = BroadcastScheduler.new(@event_store, @logger)
       
       # State management for interactive commands
       @user_states = {} # Key: "#{chat_id}:#{user_id}", Value: { step: :symbol, data: {} }
@@ -47,6 +49,7 @@ module CalendarBot
 
     def graceful_shutdown
       @logger.info('Shutting down Telegram Calendar Bot...')
+      @broadcast_scheduler.stop if @broadcast_scheduler
       exit(0)
     end
 
@@ -54,9 +57,16 @@ module CalendarBot
       bot = Telegram::Bot::Client.new(@token)
       
       @logger.info('✓ Bot is ready and listening for messages')
-      @logger.info("Broadcast lead time: #{::Config::BROADCAST_LEAD_TIME} seconds")
       @logger.info("Events storage: #{::Config.events_storage_path}")
       @logger.info("Total events in storage: #{@event_store.count}")
+      
+      # Setup and start broadcast scheduler
+      @broadcast_scheduler.set_bot_client(bot)
+      scheduler_started = @broadcast_scheduler.start
+      
+      if scheduler_started
+        @logger.info("Scheduler status: #{@broadcast_scheduler.status.inspect}")
+      end
 
       begin
         bot.listen do |message|
@@ -108,6 +118,10 @@ module CalendarBot
         end
       when '/delete_event'
         bot.api.send_message(chat_id: message.chat.id, text: "⚠️ Usage: /delete_event <event_id>\nUse /events to find the ID.")
+      when '/broadcast_status'
+        handle_broadcast_status(bot, message)
+      when '/broadcast_check'
+        handle_broadcast_check(bot, message)
       else
         handle_unknown(bot, message) unless message.text.start_with?('/') == false # Ignore normal chat
       end
@@ -134,6 +148,8 @@ module CalendarBot
                  "/add_event - Add a new custom event (Interactive)\n" +
                  "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
                  "/delete_event <ID> - Delete an event (Admin only)\n" +
+                 "/broadcast_status - Check scheduler status (Admin only)\n" +
+                 "/broadcast_check - Force scheduler check (Admin only)\n" +
                  "/help - Show this help message\n\n" +
                  "💡 The /calendar command shows events happening in the next 7 days, limited to 10 entries.\n\n" +
                  "Current events: #{@event_store.count}"
@@ -421,6 +437,38 @@ module CalendarBot
     
     def send_forbidden(bot, message)
       bot.api.send_message(chat_id: message.chat.id, text: "⛔ You must be an admin to use this command.")
+    end
+
+    # --- Broadcast Scheduler Commands ---
+    
+    def handle_broadcast_status(bot, message)
+      if is_admin?(bot, message)
+        status = @broadcast_scheduler.status
+        
+        response = "📡 Broadcast Scheduler Status:\n\n" +
+                   "Enabled: #{status[:enabled] ? '✅ Yes' : '❌ No'}\n" +
+                   "Check Interval: #{status[:check_interval]} minutes\n" +
+                   "Lead Time: #{status[:lead_time]} minutes (#{status[:lead_time] / 60} hours)\n" +
+                   "Target Groups: #{status[:target_groups].join(', ')}\n" +
+                   "Metadata Entries: #{status[:metadata_count]}\n" +
+                   "Next Run: #{status[:next_run] ? status[:next_run].strftime('%Y-%m-%d %H:%M:%S UTC') : 'N/A'}"
+        
+        bot.api.send_message(chat_id: message.chat.id, text: response)
+      else
+        send_forbidden(bot, message)
+      end
+    end
+    
+    def handle_broadcast_check(bot, message)
+      if is_admin?(bot, message)
+        bot.api.send_message(chat_id: message.chat.id, text: "🔄 Running broadcast check...")
+        
+        @broadcast_scheduler.force_check
+        
+        bot.api.send_message(chat_id: message.chat.id, text: "✅ Broadcast check completed.")
+      else
+        send_forbidden(bot, message)
+      end
     end
   end
 end

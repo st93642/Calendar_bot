@@ -12,6 +12,11 @@ module Config
   # Bot Settings
   BROADCAST_LEAD_TIME = ENV.fetch('BROADCAST_LEAD_TIME', '300').to_i
 
+  # Broadcast Scheduler Configuration
+  BROADCAST_ENABLED = ENV.fetch('BROADCAST_ENABLED', 'false')
+  BROADCAST_CHECK_INTERVAL = ENV.fetch('BROADCAST_CHECK_INTERVAL', '30').to_i
+  BROADCAST_TARGET_GROUPS = ENV.fetch('BROADCAST_TARGET_GROUPS', '')
+
   # Storage Configuration
   EVENTS_STORAGE_PATH = ENV.fetch('EVENTS_STORAGE_PATH', './events.json')
 
