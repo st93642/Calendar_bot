@@ -10,6 +10,7 @@ gem 'rufus-scheduler', '~> 3.9.0'
 gem 'dotenv', '~> 2.8'
 gem 'mutex_m'
 gem 'redis', '~> 5.0'
+gem 'bigdecimal'  # Required for Ruby 3.4+
 
 # Logging
 gem 'logger'
