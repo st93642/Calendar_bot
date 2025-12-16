@@ -234,17 +234,17 @@ module CalendarBot
                    "No events scheduled for the next 7 days.\n\n" +
                    "Use /import to add events from an ICS calendar."
         msg = bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
-        message_ids << msg['result']['message_id']
+        message_ids << msg.dig('result', 'message_id')
       else
         # Send events one by one to avoid message length issues
         header = "📅 Upcoming Events (next 7 days)\n\nShowing #{display_events.length} of #{upcoming_events.length} event#{upcoming_events.length == 1 ? '' : 's'}\n"
         msg = bot.api.send_message(chat_id: message.chat.id, text: header)
-        message_ids << msg['result']['message_id']
+        message_ids << msg.dig('result', 'message_id')
         
         display_events.each_with_index do |event, index|
           event_text = format_event_plain(event, index + 1, timezone)
           msg = bot.api.send_message(chat_id: message.chat.id, text: event_text)
-          message_ids << msg['result']['message_id']
+          message_ids << msg.dig('result', 'message_id')
         end
         
         # Add pagination note if there are more events
@@ -252,7 +252,7 @@ module CalendarBot
           remaining = upcoming_events.length - 5
           note = "\nUse /events to see all #{upcoming_events.length} events"
           msg = bot.api.send_message(chat_id: message.chat.id, text: note)
-          message_ids << msg['result']['message_id']
+          message_ids << msg.dig('result', 'message_id')
         end
       end
       
@@ -276,7 +276,7 @@ module CalendarBot
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
         msg = bot.api.send_message(chat_id: message.chat.id, text: response)
-        message_ids << msg['result']['message_id']
+        message_ids << msg.dig('result', 'message_id')
       else
         # Sort events by start time
         events.sort_by! { |event| Time.parse(event['start_time']) }
@@ -284,7 +284,7 @@ module CalendarBot
         # Send header first
         header = "📅 Events (#{events.length}):\n"
         msg = bot.api.send_message(chat_id: message.chat.id, text: header)
-        message_ids << msg['result']['message_id']
+        message_ids << msg.dig('result', 'message_id')
         
         # Send each event as a separate message to avoid length/parsing issues
         events.each_with_index do |event, i|
@@ -298,7 +298,7 @@ module CalendarBot
           
           # Send as plain text to avoid Markdown parsing issues with special characters
           msg = bot.api.send_message(chat_id: message.chat.id, text: event_text)
-          message_ids << msg['result']['message_id']
+          message_ids << msg.dig('result', 'message_id')
         end
       end
       
