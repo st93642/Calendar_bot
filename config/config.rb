@@ -76,8 +76,12 @@ module Config
         redis_url = REDIS_URL || 'redis://localhost:6379/0'
         logger.info("Connecting to Redis at #{redis_url.gsub(/:[^:@]+@/, ':***@')}")
         
-        # Configure SSL for Heroku Redis
-        redis_options = { url: redis_url }
+        # Configure SSL for Heroku Redis with timeouts
+        redis_options = {
+          url: redis_url,
+          timeout: 5,          # 5 second timeout for commands
+          connect_timeout: 10  # 10 second timeout for initial connection
+        }
         if redis_url.start_with?('rediss://')
           redis_options[:ssl_params] = { verify_mode: OpenSSL::SSL::VERIFY_NONE }
         end
