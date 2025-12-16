@@ -263,6 +263,9 @@ module CalendarBot
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
       else
+        # Sort events by start time
+        events.sort_by! { |event| Time.parse(event['start_time']) }
+        
         # Send header first
         header = "📅 Events (#{events.length}):\n"
         bot.api.send_message(chat_id: message.chat.id, text: header)
