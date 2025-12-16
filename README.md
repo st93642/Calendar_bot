@@ -105,7 +105,7 @@ BROADCAST_TARGET_GROUPS=-1001234567890
 
 - The bot runs as a **worker** dyno (not web), so it doesn't need a port
 - Events are stored in `/tmp/events.json` on Heroku (temporary - resets on dyno restart)
-- For persistent storage, consider using a database addon or external storage service
+- For persistent storage, consider using [Heroku Postgres](https://elements.heroku.com/addons/heroku-postgresql) or [AWS S3](https://elements.heroku.com/addons/bucketeer) addons
 - The `Procfile` and `runtime.txt` files are already configured
 
 ### Finding Group Chat IDs
