@@ -7,6 +7,7 @@ require_relative 'lib/event_store'
 require_relative 'lib/ics_importer'
 require_relative 'lib/bot_helpers'
 require_relative 'lib/broadcast_scheduler'
+require_relative 'lib/calendar_keyboard'
 
 module CalendarBot
   class Bot
@@ -94,8 +95,13 @@ module CalendarBot
       end
 
       begin
-        bot.listen do |message|
-          handle_message(bot, message)
+        bot.listen do |update|
+          case update
+          when Telegram::Bot::Types::CallbackQuery
+            handle_callback_query(bot, update)
+          when Telegram::Bot::Types::Message
+            handle_message(bot, update)
+          end
         end
       rescue Interrupt
         graceful_shutdown
@@ -105,7 +111,7 @@ module CalendarBot
     def handle_message(bot, message)
       return unless message.respond_to?(:text) && message.text # Ignore non-text messages
       
-      @logger.debug("Received message from #{message.from.username}: #{message.text}")
+      @logger.debug("Received message from #{message.from.username} (chat_id: #{message.chat.id}, type: #{message.chat.type}): #{message.text}")
 
       # Check if user is in a conversation flow
       user_key = "#{message.chat.id}:#{message.from.id}"
@@ -156,7 +162,7 @@ module CalendarBot
       response = "Welcome to Calendar Bot! 📅\n\n" +
                  "This bot can help you manage calendar events.\n\n" +
                  "Available commands:\n" +
-                 "/calendar - Show upcoming events (next 7 days)\n" +
+                 "/calendar - Show upcoming events (next 2 months)\n" +
                  "/events - List all events\n" +
                  "/add_event - Add a new custom event\n" +
                  "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
@@ -168,7 +174,7 @@ module CalendarBot
 
     def handle_help(bot, message)
       response = "📅 Calendar Bot Commands:\n\n" +
-                 "/calendar - Show upcoming events (next 7 days)\n" +
+                 "/calendar - Show upcoming events (next 2 months)\n" +
                  "/events - List all events\n" +
                  "/add_event - Add a new custom event (Interactive)\n" +
                  "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
@@ -176,7 +182,7 @@ module CalendarBot
                  "/broadcast_status - Check scheduler status (Admin only)\n" +
                  "/broadcast_check - Force scheduler check (Admin only)\n" +
                  "/help - Show this help message\n\n" +
-                 "💡 The /calendar command shows events happening in the next 7 days, limited to 10 entries.\n\n" +
+                 "💡 The /calendar command shows events happening in the next 2 months, limited to 10 entries.\n\n" +
                  "Current events: #{@event_store.count}"
       bot.api.send_message(chat_id: message.chat.id, text: response)
     end
@@ -189,14 +195,14 @@ module CalendarBot
       # Get all events
       all_events = @event_store.all_events
       
-      # Filter to upcoming events (next 7 days)
+      # Filter to upcoming events (next 2 months = 60 days)
       now = Time.now.utc
-      seven_days_from_now = now + (7 * 24 * 60 * 60)
+      two_months_from_now = now + (60 * 24 * 60 * 60)
       
       upcoming_events = all_events.select do |event|
         begin
           event_start = Time.parse(event['start_time']).utc
-          event_start >= now && event_start <= seven_days_from_now
+          event_start >= now && event_start <= two_months_from_now
         rescue ArgumentError
           false
         end
@@ -205,39 +211,29 @@ module CalendarBot
       # Sort by start time
       upcoming_events.sort_by! { |event| Time.parse(event['start_time']) }
       
-      # Limit to 10 events
-      display_events = upcoming_events.take(10)
+      # Limit to 5 events to avoid message length issues
+      display_events = upcoming_events.take(5)
       
       if display_events.empty?
         response = "📅 *Upcoming Events*\n\n" +
-                   "No events scheduled for the next 7 days\\.\n\n" +
-                   "Use /import to add events from an ICS calendar\\."
-        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'MarkdownV2')
+                   "No events scheduled for the next 2 months.\n\n" +
+                   "Use /import to add events from an ICS calendar."
+        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
       else
-        # Build response with formatted events
-        response_parts = ["📅 *Upcoming Events* \\(next 7 days\\)\n"]
+        # Send events one by one to avoid message length issues
+        header = "📅 Upcoming Events (next 2 months)\n\nShowing #{display_events.length} of #{upcoming_events.length} event#{upcoming_events.length == 1 ? '' : 's'}\n"
+        bot.api.send_message(chat_id: message.chat.id, text: header)
         
         display_events.each_with_index do |event, index|
-          response_parts << ""
-          response_parts << format_event(event, index + 1, timezone)
+          event_text = format_event_plain(event, index + 1, timezone)
+          bot.api.send_message(chat_id: message.chat.id, text: event_text)
         end
         
         # Add pagination note if there are more events
-        if upcoming_events.length > 10
-          remaining = upcoming_events.length - 10
-          response_parts << ""
-          response_parts << "\\.\\.\\. and #{remaining} more event#{remaining == 1 ? '' : 's'}"
-        end
-        
-        response = response_parts.join("\n")
-        
-        begin
-          bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'MarkdownV2')
-        rescue Telegram::Bot::Exceptions::ResponseError => e
-          # If markdown parsing fails, send plain text
-          @logger.error("Markdown parsing failed: #{e.message}")
-          plain_response = response.gsub(/\\/, '')
-          bot.api.send_message(chat_id: message.chat.id, text: plain_response)
+        if upcoming_events.length > 5
+          remaining = upcoming_events.length - 5
+          note = "\nUse /events to see all #{upcoming_events.length} events"
+          bot.api.send_message(chat_id: message.chat.id, text: note)
         end
       end
     rescue StandardError => e
@@ -255,25 +251,34 @@ module CalendarBot
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
       else
-        response_parts = ["📅 Events (#{events.length}):\n"]
+        # Send header first
+        header = "📅 Events (#{events.length}):\n"
+        bot.api.send_message(chat_id: message.chat.id, text: header)
+        
+        # Send each event as a separate message to avoid length/parsing issues
         events.each_with_index do |event, i|
-          response_parts << "#{i + 1}. #{event['title']}"
-          response_parts << "   ID: `#{event['id']}`" # Useful for deletion
-          response_parts << "   🕒 #{format_time(event['start_time'])}"
-          response_parts << "   🏷️  #{event['custom'] ? 'Custom' : 'Imported'}"
-          response_parts << ""
+          event_parts = []
+          event_parts << "#{i + 1}. #{event['title']}"
+          event_parts << "   ID: #{event['id']}"
+          event_parts << "   🕒 #{format_time(event['start_time'])}"
+          
+          # Add description if present
+          if event['description'] && !event['description'].to_s.strip.empty?
+            desc = event['description'].to_s.strip
+            # Truncate descriptions to keep messages short and readable
+            if desc.length > 200
+              desc = desc[0..197] + "..."
+            end
+            event_parts << "   📝 #{desc}"
+          end
+          
+          event_parts << "   🏷️  #{event['custom'] ? 'Custom' : 'Imported'}"
+          
+          event_text = event_parts.join("\n")
+          
+          # Send as plain text to avoid Markdown parsing issues with special characters
+          bot.api.send_message(chat_id: message.chat.id, text: event_text)
         end
-        response = response_parts.join("\n")
-      end
-      
-      # Split message if too long (Telegram limit is 4096)
-      if response.length > 4000
-        chunks = response.chars.each_slice(4000).map(&:join)
-        chunks.each do |chunk|
-          bot.api.send_message(chat_id: message.chat.id, text: chunk, parse_mode: 'Markdown')
-        end
-      else
-        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
       end
     end
 
@@ -333,6 +338,175 @@ module CalendarBot
       bot.api.send_message(chat_id: message.chat.id, text: "📝 Adding new event.\n\nPlease enter the **Event Title** (or type /cancel to abort):", parse_mode: 'Markdown')
     end
     
+    # Handle calendar keyboard callbacks
+    def handle_callback_query(bot, query)
+      user_key = "#{query.message.chat.id}:#{query.from.id}"
+      data = query.data
+      
+      # Answer callback to remove loading state
+      bot.api.answer_callback_query(callback_query_id: query.id)
+      
+      case data
+      when 'ignore'
+        # Do nothing for header/label buttons
+        return
+        
+      when 'cancel_date'
+        @user_states.delete(user_key)
+        bot.api.edit_message_text(
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          text: "❌ Event creation cancelled."
+        )
+        
+      when /^prev_month:(\d+):(\d+)$/
+        year, month = $1.to_i, $2.to_i
+        new_date = Date.new(year, month, 1) << 1  # Previous month
+        keyboard = CalendarKeyboard.generate_month(new_date.year, new_date.month)
+        bot.api.edit_message_reply_markup(
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          reply_markup: { inline_keyboard: keyboard }
+        )
+        
+      when /^next_month:(\d+):(\d+)$/
+        year, month = $1.to_i, $2.to_i
+        new_date = Date.new(year, month, 1) >> 1  # Next month
+        keyboard = CalendarKeyboard.generate_month(new_date.year, new_date.month)
+        bot.api.edit_message_reply_markup(
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          reply_markup: { inline_keyboard: keyboard }
+        )
+        
+      when 'today'
+        handle_date_selected(bot, query, Date.today.to_s, user_key)
+        
+      when /^date:(.+)$/
+        selected_date = $1
+        handle_date_selected(bot, query, selected_date, user_key)
+        
+      when /^time_nav:(.+):(\d+)$/
+        selected_date, hour = $1, $2.to_i
+        keyboard = CalendarKeyboard.generate_time_selector(selected_date, hour)
+        bot.api.edit_message_reply_markup(
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          reply_markup: { inline_keyboard: keyboard }
+        )
+        
+      when /^time:(.+):(\d+):(\d+)$/
+        selected_date, hour, minute = $1, $2.to_i, $3.to_i
+        handle_time_selected(bot, query, selected_date, hour, minute, user_key)
+        
+      when 'back_to_calendar'
+        state = @user_states[user_key]
+        if state
+          keyboard = CalendarKeyboard.generate_month(Date.today.year, Date.today.month)
+          bot.api.edit_message_text(
+            chat_id: query.message.chat.id,
+            message_id: query.message.message_id,
+            text: "📅 Select #{state[:step] == :awaiting_start_time ? 'start' : 'end'} date:",
+            reply_markup: { inline_keyboard: keyboard }
+          )
+        end
+        
+      when 'use_manual_input'
+        state = @user_states[user_key]
+        if state
+          step_name = state[:step] == :awaiting_start_time ? 'start' : 'end'
+          bot.api.edit_message_text(
+            chat_id: query.message.chat.id,
+            message_id: query.message.message_id,
+            text: "🕒 Enter **#{step_name.capitalize} Time** (YYYY-MM-DD HH:MM):",
+            parse_mode: 'Markdown'
+          )
+          state[:step] = state[:step] == :awaiting_start_time ? :start_time : :end_time
+        end
+      end
+    rescue StandardError => e
+      @logger.error("Callback query error: #{e.message}")
+      @logger.debug(e.backtrace.join("\n"))
+      bot.api.answer_callback_query(
+        callback_query_id: query.id,
+        text: "❌ Error processing selection. Please try again."
+      )
+    end
+    
+    def handle_date_selected(bot, query, selected_date, user_key)
+      state = @user_states[user_key]
+      return unless state
+      
+      keyboard = CalendarKeyboard.generate_time_selector(selected_date)
+      step_name = state[:step] == :awaiting_start_time ? 'start' : 'end'
+      
+      bot.api.edit_message_text(
+        chat_id: query.message.chat.id,
+        message_id: query.message.message_id,
+        text: "⏰ Select #{step_name} time for #{selected_date}:",
+        reply_markup: { inline_keyboard: keyboard }
+      )
+    end
+    
+    def handle_time_selected(bot, query, selected_date, hour, minute, user_key)
+      state = @user_states[user_key]
+      return unless state
+      
+      time_str = "#{selected_date} #{hour.to_s.rjust(2, '0')}:#{minute.to_s.rjust(2, '0')}"
+      time = Time.parse(time_str).utc.iso8601
+      
+      if state[:step] == :awaiting_start_time
+        state[:event_data]['start_time'] = time
+        state[:step] = :awaiting_end_time
+        
+        # Show calendar for end time
+        keyboard = CalendarKeyboard.generate_month(Date.today.year, Date.today.month)
+        bot.api.edit_message_text(
+          chat_id: query.message.chat.id,
+          message_id: query.message.message_id,
+          text: "📅 Select end date:",
+          reply_markup: { inline_keyboard: keyboard }
+        )
+      else
+        # Validate end time > start time
+        start_time = Time.parse(state[:event_data]['start_time'])
+        end_time = Time.parse(time_str)
+        
+        if end_time <= start_time
+          bot.api.answer_callback_query(
+            callback_query_id: query.id,
+            text: "❌ End time must be after start time!",
+            show_alert: true
+          )
+          return
+        end
+        
+        state[:event_data]['end_time'] = time
+        
+        # Create the event
+        result = @event_store.create(state[:event_data])
+        
+        if result
+          bot.api.edit_message_text(
+            chat_id: query.message.chat.id,
+            message_id: query.message.message_id,
+            text: "✅ Event *#{escape_markdown(result['title'])}* created successfully!\n\n" +
+                  "🕒 #{escape_markdown(format_timestamp(result['start_time']))}\n" +
+                  "   to #{escape_markdown(format_timestamp(result['end_time']))}",
+            parse_mode: 'MarkdownV2'
+          )
+        else
+          bot.api.edit_message_text(
+            chat_id: query.message.chat.id,
+            message_id: query.message.message_id,
+            text: "⚠️ Failed to create event (possibly duplicate title + time)."
+          )
+        end
+        
+        @user_states.delete(user_key)
+      end
+    end
+    
     def handle_conversation_step(bot, message, user_key)
       state = @user_states[user_key]
       
@@ -351,11 +525,26 @@ module CalendarBot
       when :description
         desc = message.text
         state[:event_data]['description'] = (desc.downcase == 'skip') ? nil : desc
-        state[:step] = :start_time
-        bot.api.send_message(chat_id: message.chat.id, text: "🕒 Enter **Start Time** (YYYY-MM-DD HH:MM):", parse_mode: 'Markdown')
+        state[:step] = :awaiting_start_time
+        
+        # Show calendar keyboard
+        keyboard = CalendarKeyboard.generate_month(Date.today.year, Date.today.month)
+        keyboard << [{ text: "✍️ Enter Manually", callback_data: "use_manual_input" }]
+        
+        bot.api.send_message(
+          chat_id: message.chat.id,
+          text: "📅 Select start date:",
+          reply_markup: { inline_keyboard: keyboard }
+        )
         
       when :start_time
         begin
+          # Validate format includes date (not just time)
+          unless message.text.match?(/\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/)
+            bot.api.send_message(chat_id: message.chat.id, text: "❌ Please include date. Format: YYYY-MM-DD HH:MM\nExample: 2025-12-25 14:00")
+            return
+          end
+          
           time = Time.parse(message.text)
           state[:event_data]['start_time'] = time.utc.iso8601
           state[:step] = :end_time
@@ -364,8 +553,26 @@ module CalendarBot
           bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Please use YYYY-MM-DD HH:MM:")
         end
         
+      when :awaiting_start_time
+        # User chose manual input from calendar keyboard
+        state[:step] = :start_time
+        handle_conversation_step(bot, message, user_key)
+        return
+        
+      when :awaiting_end_time
+        # User chose manual input from calendar keyboard
+        state[:step] = :end_time
+        handle_conversation_step(bot, message, user_key)
+        return
+        
       when :end_time
         begin
+          # Validate format includes date (not just time)
+          unless message.text.match?(/\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/)
+            bot.api.send_message(chat_id: message.chat.id, text: "❌ Please include date. Format: YYYY-MM-DD HH:MM\nExample: 2025-12-25 15:00")
+            return
+          end
+          
           time = Time.parse(message.text)
           end_time = time.utc.iso8601
           

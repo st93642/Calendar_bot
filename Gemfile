@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-ruby '3.4.7'
+ruby '3.4.6'
 
 gem 'telegram-bot-ruby', '~> 0.19.0'
 gem 'icalendar', '~> 2.7'
@@ -14,7 +14,9 @@ gem 'redis', '~> 5.0'
 # Logging
 gem 'logger'
 
-# Testing
+# Development & Testing
+gem 'rake'
+
 group :test do
   gem 'rspec', '~> 3.12'
   gem 'rspec-mocks', '~> 3.12'

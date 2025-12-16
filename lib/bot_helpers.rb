@@ -85,12 +85,76 @@ module CalendarBot
       time_range = format_time_range(event['start_time'], event['end_time'], timezone)
       lines << "🕒 #{escape_markdown(time_range)}"
       
-      # Description (if present)
-      if event['description'] && !event['description'].empty?
-        desc = event['description'].strip
-        # Truncate long descriptions
-        desc = desc[0..150] + '...' if desc.length > 150
+      # Description (if present and not nil)
+      if event['description'] && !event['description'].to_s.strip.empty?
+        desc = event['description'].to_s.strip
         lines << "📝 #{escape_markdown(desc)}"
+      end
+      
+      # Origin (custom vs imported)
+      if event['custom']
+        lines << "🏷️  Custom event"
+      elsif event['imported_from_url']
+        lines << "🔗 Imported from calendar"
+      else
+        lines << "🏷️  Event"
+      end
+      
+      lines.join("\n")
+    end
+    
+    # Format event for plain Markdown (used in /calendar)
+    def format_event_simple(event, index, timezone = nil)
+      lines = []
+      
+      # Event number and title
+      lines << "*#{index}. #{event['title']}*"
+      
+      # Time range
+      time_range = format_time_range(event['start_time'], event['end_time'], timezone)
+      lines << "🕒 #{time_range}"
+      
+      # Description (if present and not nil)
+      if event['description'] && !event['description'].to_s.strip.empty?
+        desc = event['description'].to_s.strip
+        # Truncate descriptions for calendar view to keep it short and readable
+        if desc.length > 200
+          desc = desc[0..197] + "..."
+        end
+        lines << "📝 #{desc}"
+      end
+      
+      # Origin (custom vs imported)
+      if event['custom']
+        lines << "🏷️  Custom event"
+      elsif event['imported_from_url']
+        lines << "🔗 Imported from calendar"
+      else
+        lines << "🏷️  Event"
+      end
+      
+      lines.join("\n")
+    end
+    
+    # Format event as plain text (no markdown)
+    def format_event_plain(event, index, timezone = nil)
+      lines = []
+      
+      # Event number and title
+      lines << "#{index}. #{event['title']}"
+      
+      # Time range
+      time_range = format_time_range(event['start_time'], event['end_time'], timezone)
+      lines << "🕒 #{time_range}"
+      
+      # Description (if present and not nil)
+      if event['description'] && !event['description'].to_s.strip.empty?
+        desc = event['description'].to_s.strip
+        # Truncate descriptions for calendar view to keep it short and readable
+        if desc.length > 200
+          desc = desc[0..197] + "..."
+        end
+        lines << "📝 #{desc}"
       end
       
       # Origin (custom vs imported)

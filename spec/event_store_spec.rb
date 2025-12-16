@@ -129,7 +129,7 @@ RSpec.describe CalendarBot::EventStore do
       event_store.create(event_data) # Should be ignored as duplicate
       
       duplicates = event_store.find_duplicates(event_data)
-      expect(duplicates.length).to eq(2) # Both are considered duplicates
+      expect(duplicates.length).to eq(1) # Only 1 event exists (duplicate not created)
     end
   end
 

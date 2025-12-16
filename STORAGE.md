@@ -16,6 +16,7 @@ The bot automatically selects the appropriate storage backend based on environme
 ### 1. File-Based Storage (Default)
 
 File-based storage saves events as JSON in a local file. This is perfect for:
+
 - Local development and testing
 - Single-instance deployments
 - Environments with persistent filesystems
@@ -28,6 +29,7 @@ EVENTS_STORAGE_PATH=./events.json
 ```
 
 **Characteristics:**
+
 - ✅ Simple and easy to set up
 - ✅ No external dependencies
 - ✅ Human-readable storage format
@@ -37,6 +39,7 @@ EVENTS_STORAGE_PATH=./events.json
 ### 2. Redis Key-Value Storage (Recommended for Heroku)
 
 Redis storage uses a Redis database to persist events. This is ideal for:
+
 - Heroku deployments (dyno filesystem is ephemeral)
 - Cloud environments
 - Production deployments requiring persistence
@@ -51,6 +54,7 @@ USE_REDIS=true  # Forces Redis usage with REDIS_URL
 ```
 
 **Characteristics:**
+
 - ✅ Persistent across dyno restarts
 - ✅ Fast key-value access
 - ✅ Suitable for cloud deployments
@@ -84,6 +88,7 @@ heroku config -a your-app-name | grep REDIS_URL
 ```
 
 You should see:
+
 ```
 REDIS_URL: redis://...
 ```
@@ -96,6 +101,7 @@ heroku logs --tail -a your-app-name
 ```
 
 Look for log messages indicating Redis storage:
+
 ```
 [INFO] Using Redis storage adapter
 [INFO] Events storage type: Redis
@@ -149,6 +155,7 @@ bundle exec ruby bot.rb
 ### From File to Redis
 
 1. Export your events from file storage:
+
    ```ruby
    require 'json'
    events = JSON.parse(File.read('events.json'))
@@ -163,6 +170,7 @@ bundle exec ruby bot.rb
 ### From Redis to File
 
 1. Use Redis CLI to export data:
+
    ```bash
    redis-cli GET calendar_bot:events > events_backup.json
    ```
@@ -200,17 +208,20 @@ Events are stored under the key: `calendar_bot:events`
 If you see errors like "Failed to connect to Redis":
 
 1. Check Redis is running:
+
    ```bash
    redis-cli ping
    # Should return: PONG
    ```
 
 2. Verify `REDIS_URL` is correct:
+
    ```bash
    echo $REDIS_URL
    ```
 
 3. Check Redis logs:
+
    ```bash
    heroku redis:info -a your-app-name
    ```
@@ -218,6 +229,7 @@ If you see errors like "Failed to connect to Redis":
 ### Fallback to File Storage
 
 If Redis fails, the bot automatically falls back to file storage. Check logs for:
+
 ```
 [WARN] Redis not available, falling back to file storage
 [INFO] Using file storage adapter: ./events.json
@@ -226,6 +238,7 @@ If Redis fails, the bot automatically falls back to file storage. Check logs for
 ### Data Loss on Heroku Without Redis
 
 If you're seeing events disappear after dyno restarts:
+
 - You're using file storage on Heroku's ephemeral filesystem
 - Solution: Add Heroku Redis addon (see above)
 
@@ -252,11 +265,13 @@ Currently, the bot uses a single storage backend at a time. To use multiple back
 ## Performance Considerations
 
 ### File Storage
+
 - Read/Write: O(n) where n is file size
 - Suitable for: < 10,000 events
 - Bottleneck: File I/O and JSON parsing
 
 ### Redis Storage
+
 - Read/Write: O(1) for single event operations
 - Suitable for: Any size (limited by Redis memory)
 - Bottleneck: Network latency
@@ -264,10 +279,12 @@ Currently, the bot uses a single storage backend at a time. To use multiple back
 ## Security
 
 ### File Storage
+
 - Ensure proper file permissions (600 or 644)
 - Don't commit events.json to version control (add to .gitignore)
 
 ### Redis Storage
+
 - Use SSL/TLS for production (Heroku Redis includes this)
 - Use strong Redis passwords
 - Don't expose Redis port publicly
@@ -278,6 +295,7 @@ Currently, the bot uses a single storage backend at a time. To use multiple back
 ### Check Storage Type
 
 Look for this in bot startup logs:
+
 ```
 [INFO] Events storage type: Redis
 # or
@@ -291,6 +309,7 @@ heroku redis:info -a your-app-name
 ```
 
 Shows:
+
 - Memory usage
 - Connected clients
 - Keyspace information

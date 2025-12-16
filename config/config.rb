@@ -10,7 +10,7 @@ module Config
   end
 
   # Bot Settings
-  BROADCAST_LEAD_TIME = ENV.fetch('BROADCAST_LEAD_TIME', '300').to_i
+  BROADCAST_LEAD_TIME = ENV.fetch('BROADCAST_LEAD_TIME', '1440').to_i  # 24 hours in minutes
 
   # Broadcast Scheduler Configuration
   BROADCAST_ENABLED = ENV.fetch('BROADCAST_ENABLED', 'false')

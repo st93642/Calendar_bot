@@ -13,7 +13,7 @@ A Telegram bot for managing calendar events with ICS import, automatic reminders
 
 - `/start` - Welcome message
 - `/help` - Show available commands
-- `/calendar` - Show upcoming events (next 7 days)
+- `/calendar` - Show upcoming events (next 2 months)
 - `/events` - List all events
 - `/import <URL>` - Import ICS calendar (Admin)
 - `/add_event` - Add custom event (Interactive)
@@ -52,7 +52,7 @@ EVENTS_STORAGE_PATH=./events.json
 LOG_LEVEL=info
 BROADCAST_ENABLED=false
 BROADCAST_CHECK_INTERVAL=30
-BROADCAST_LEAD_TIME=300
+BROADCAST_LEAD_TIME=1440  # 24 hours in minutes
 BROADCAST_TARGET_GROUPS=-1001234567890
 ```
 
@@ -67,42 +67,49 @@ BROADCAST_TARGET_GROUPS=-1001234567890
 ### Deployment Steps
 
 1. **Create Heroku app:**
+
    ```bash
    heroku create your-calendar-bot
    ```
 
 2. **Add Heroku Redis for persistent storage:**
+
    ```bash
    heroku addons:create heroku-redis:mini -a your-calendar-bot
    ```
-   
+
    This automatically sets the `REDIS_URL` environment variable. The bot will detect this and use Redis for persistent event storage instead of ephemeral file storage.
 
 3. **Set environment variables:**
+
    ```bash
    heroku config:set TELEGRAM_BOT_TOKEN=your_bot_token_here
    heroku config:set LOG_LEVEL=info
    ```
 
 4. **Optional - Enable broadcast reminders:**
+
    ```bash
    heroku config:set BROADCAST_ENABLED=true
    heroku config:set BROADCAST_CHECK_INTERVAL=30
-   heroku config:set BROADCAST_LEAD_TIME=300
+   heroku config:set BROADCAST_LEAD_TIME=1440
    heroku config:set BROADCAST_TARGET_GROUPS=-1001234567890
    ```
 
 5. **Deploy to Heroku:**
+
    ```bash
    git push heroku main
    ```
 
 6. **Scale worker dyno:**
+
    ```bash
    heroku ps:scale worker=1
    ```
 
 7. **View logs:**
+
    ```bash
    heroku logs --tail
    ```
@@ -122,6 +129,7 @@ The bot automatically detects and uses the best available storage:
 - **premium-0** ($15/month): 100 MB storage - For bots with large calendars
 
 To check your Redis status:
+
 ```bash
 heroku redis:info -a your-calendar-bot
 ```
@@ -182,6 +190,7 @@ Calendar_bot/
 ## Storage Configuration
 
 The bot supports two storage backends:
+
 - **File-based storage** (default) - For local development
 - **Redis key-value storage** - For Heroku and production deployments
 
