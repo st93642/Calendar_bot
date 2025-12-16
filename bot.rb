@@ -550,12 +550,20 @@ module CalendarBot
       case state[:step]
       when :title
         state[:event_data]['title'] = message.text
-        state[:step] = :description
-        bot.api.send_message(chat_id: message.chat.id, text: "📝 Enter **Description** (or type 'skip' for none):", parse_mode: 'Markdown')
+        state[:step] = :awaiting_start_time
+        
+        # Show calendar keyboard for start time
+        keyboard = CalendarKeyboard.generate_month(Date.today.year, Date.today.month)
+        keyboard << [{ text: "✍️ Enter Manually", callback_data: "use_manual_input" }]
+        
+        bot.api.send_message(
+          chat_id: message.chat.id,
+          text: "📅 Select start date:",
+          reply_markup: { inline_keyboard: keyboard }
+        )
         
       when :description
-        desc = message.text
-        state[:event_data]['description'] = (desc.downcase == 'skip') ? nil : desc
+        # Skip description - we don't store it anymore
         state[:step] = :awaiting_start_time
         
         # Show calendar keyboard

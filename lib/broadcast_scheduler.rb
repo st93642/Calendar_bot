@@ -34,6 +34,11 @@ module CalendarBot
         check_and_broadcast_events
       end
       
+      # Schedule daily cleanup of old events (runs at 3 AM UTC)
+      @scheduler.cron '0 3 * * *' do
+        cleanup_old_events
+      end
+      
       # Run initial check after a short delay
       @scheduler.in '30s' do
         check_and_broadcast_events
@@ -45,6 +50,12 @@ module CalendarBot
       @logger.error("Failed to start broadcast scheduler: #{e.message}")
       @logger.debug(e.backtrace.join("\n"))
       false
+    end
+    
+    def cleanup_old_events
+      @logger.info("Running cleanup of old events...")
+      deleted_count = @event_store.cleanup_old_events
+      @logger.info("Cleanup completed: #{deleted_count} events deleted")
     end
 
     def stop

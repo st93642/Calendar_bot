@@ -218,6 +218,32 @@ module CalendarBot
         read_events.length
       end
     end
+    
+    def cleanup_old_events
+      synchronize do
+        events = read_events
+        now = Time.now.utc
+        one_day_ago = now - (24 * 60 * 60)
+        
+        initial_count = events.length
+        events.reject! do |event|
+          begin
+            event_end = Time.parse(event['end_time']).utc
+            event_end < one_day_ago
+          rescue ArgumentError
+            false
+          end
+        end
+        
+        deleted_count = initial_count - events.length
+        if deleted_count > 0
+          write_events(events)
+          @logger.info("Cleaned up #{deleted_count} old events")
+        end
+        
+        deleted_count
+      end
+    end
 
     private
 
@@ -244,6 +270,9 @@ module CalendarBot
       unless missing_fields.empty?
         raise ArgumentError, "Missing required fields: #{missing_fields.join(', ')}"
       end
+      
+      # Remove description if present (we don't store it)
+      event_data.delete('description')
 
       # Validate time format (basic ISO 8601 check)
       [event_data['start_time'], event_data['end_time']].each do |time_str|

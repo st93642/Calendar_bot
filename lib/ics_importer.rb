@@ -156,7 +156,6 @@ module CalendarBot
     def normalize_ical_event(ical_event, source_url)
       # Extract basic properties
       title = ical_event.summary.to_s.strip
-      description = ical_event.description.to_s.strip
       
       # Skip events without required fields
       if title.empty?
@@ -182,7 +181,6 @@ module CalendarBot
       # Build normalized event structure
       {
         'title' => title,
-        'description' => description.empty? ? nil : description,
         'start_time' => start_time.utc.iso8601,
         'end_time' => end_time.utc.iso8601,
         'custom' => false,
