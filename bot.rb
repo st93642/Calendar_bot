@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'telegram/bot'
+require 'time'
 require_relative 'config/config'
 require_relative 'lib/event_store'
 require_relative 'lib/ics_importer'
@@ -11,11 +12,17 @@ module CalendarBot
     include BotHelpers
     
     def initialize
-      Config.initialize_storage
-      @logger = Config.logger
-      @token = Config::TELEGRAM_BOT_TOKEN
+      ::Config.initialize_storage
+      @logger = ::Config.logger
+      @token = ::Config::TELEGRAM_BOT_TOKEN
       @event_store = EventStore.new
       @importer = IcsImporter.new(@event_store)
+      
+      # State management for interactive commands
+      @user_states = {} # Key: "#{chat_id}:#{user_id}", Value: { step: :symbol, data: {} }
+      
+      # Cache for admin status
+      @admin_cache = {} # Key: "#{chat_id}:#{user_id}", Value: { is_admin: boolean, timestamp: Time }
     end
 
     def start
@@ -47,8 +54,8 @@ module CalendarBot
       bot = Telegram::Bot::Client.new(@token)
       
       @logger.info('✓ Bot is ready and listening for messages')
-      @logger.info("Broadcast lead time: #{Config::BROADCAST_LEAD_TIME} seconds")
-      @logger.info("Events storage: #{Config.events_storage_path}")
+      @logger.info("Broadcast lead time: #{::Config::BROADCAST_LEAD_TIME} seconds")
+      @logger.info("Events storage: #{::Config.events_storage_path}")
       @logger.info("Total events in storage: #{@event_store.count}")
 
       begin
@@ -61,7 +68,16 @@ module CalendarBot
     end
 
     def handle_message(bot, message)
+      return unless message.respond_to?(:text) && message.text # Ignore non-text messages
+      
       @logger.debug("Received message from #{message.from.username}: #{message.text}")
+
+      # Check if user is in a conversation flow
+      user_key = "#{message.chat.id}:#{message.from.id}"
+      if @user_states.key?(user_key)
+        handle_conversation_step(bot, message, user_key)
+        return
+      end
 
       case message.text
       when '/start'
@@ -76,9 +92,24 @@ module CalendarBot
         handle_import_help(bot, message)
       when /^(\/import\s+)(https?:\/\/.+)/
         url = $2.strip
-        handle_import_url(bot, message, url)
+        if is_admin?(bot, message)
+          handle_import_url(bot, message, url)
+        else
+          send_forbidden(bot, message)
+        end
+      when '/add_event'
+        handle_add_event(bot, message)
+      when /^(\/delete_event\s+)(.+)/
+        id = $2.strip
+        if is_admin?(bot, message)
+          handle_delete_event(bot, message, id)
+        else
+          send_forbidden(bot, message)
+        end
+      when '/delete_event'
+        bot.api.send_message(chat_id: message.chat.id, text: "⚠️ Usage: /delete_event <event_id>\nUse /events to find the ID.")
       else
-        handle_unknown(bot, message)
+        handle_unknown(bot, message) unless message.text.start_with?('/') == false # Ignore normal chat
       end
     end
 
@@ -88,7 +119,9 @@ module CalendarBot
                  "Available commands:\n" +
                  "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
-                 "/import <URL> - Import ICS calendar from URL\n" +
+                 "/add_event - Add a new custom event\n" +
+                 "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
+                 "/delete_event <ID> - Delete an event (Admin only)\n" +
                  "/help - Show this help message\n\n" +
                  "Current events: #{@event_store.count}"
       bot.api.send_message(chat_id: message.chat.id, text: response)
@@ -98,7 +131,9 @@ module CalendarBot
       response = "📅 Calendar Bot Commands:\n\n" +
                  "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
-                 "/import <URL> - Import ICS calendar from URL\n" +
+                 "/add_event - Add a new custom event (Interactive)\n" +
+                 "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
+                 "/delete_event <ID> - Delete an event (Admin only)\n" +
                  "/help - Show this help message\n\n" +
                  "💡 The /calendar command shows events happening in the next 7 days, limited to 10 entries.\n\n" +
                  "Current events: #{@event_store.count}"
@@ -179,31 +214,45 @@ module CalendarBot
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
       else
-        response = "📅 Events (#{events.length}):\n\n"
+        response_parts = ["📅 Events (#{events.length}):\n"]
         events.each_with_index do |event, i|
-          response += "#{i + 1}. #{event['title']}\n"
-          response += "   🕒 #{format_time(event['start_time'])}\n"
-          response += "   🏷️  #{event['custom'] ? 'Custom' : 'Imported'}\n"
-          response += "\n"
+          response_parts << "#{i + 1}. #{event['title']}"
+          response_parts << "   ID: `#{event['id']}`" # Useful for deletion
+          response_parts << "   🕒 #{format_time(event['start_time'])}"
+          response_parts << "   🏷️  #{event['custom'] ? 'Custom' : 'Imported'}"
+          response_parts << ""
         end
+        response = response_parts.join("\n")
       end
       
-      bot.api.send_message(chat_id: message.chat.id, text: response)
+      # Split message if too long (Telegram limit is 4096)
+      if response.length > 4000
+        chunks = response.chars.each_slice(4000).map(&:join)
+        chunks.each do |chunk|
+          bot.api.send_message(chat_id: message.chat.id, text: chunk, parse_mode: 'Markdown')
+        end
+      else
+        bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
+      end
     end
 
     def handle_import_help(bot, message)
-      response = "🔄 ICS Import Help:\n\n" +
-                 "To import an ICS calendar, use:\n" +
-                 "/import <URL>\n\n" +
-                 "Example:\n" +
-                 "/import https://example.com/calendar.ics\n\n" +
-                 "This will:\n" +
-                 "• Download the ICS file\n" +
-                 "• Parse calendar events\n" +
-                 "• Merge with existing events\n" +
-                 "• Skip duplicates (same title + time)\n" +
-                 "• Update existing events if found"
-      bot.api.send_message(chat_id: message.chat.id, text: response)
+      if is_admin?(bot, message)
+        response = "🔄 ICS Import Help:\n\n" +
+                   "To import an ICS calendar, use:\n" +
+                   "/import <URL>\n\n" +
+                   "Example:\n" +
+                   "/import https://example.com/calendar.ics\n\n" +
+                   "This will:\n" +
+                   "• Download the ICS file\n" +
+                   "• Parse calendar events\n" +
+                   "• Merge with existing events\n" +
+                   "• Skip duplicates (same title + time)\n" +
+                   "• Update existing events if found"
+        bot.api.send_message(chat_id: message.chat.id, text: response)
+      else
+        send_forbidden(bot, message)
+      end
     end
 
     def handle_import_url(bot, message, url)
@@ -229,11 +278,97 @@ module CalendarBot
         bot.api.send_message(chat_id: message.chat.id, text: "❌ Import failed: #{e.message}")
       end
     end
+    
+    # --- Interactive /add_event flow ---
+    
+    def handle_add_event(bot, message)
+      user_key = "#{message.chat.id}:#{message.from.id}"
+      
+      @user_states[user_key] = {
+        step: :title,
+        event_data: { 'custom' => true }
+      }
+      
+      bot.api.send_message(chat_id: message.chat.id, text: "📝 Adding new event.\n\nPlease enter the **Event Title** (or type /cancel to abort):", parse_mode: 'Markdown')
+    end
+    
+    def handle_conversation_step(bot, message, user_key)
+      state = @user_states[user_key]
+      
+      if message.text == '/cancel'
+        @user_states.delete(user_key)
+        bot.api.send_message(chat_id: message.chat.id, text: "❌ Operation cancelled.")
+        return
+      end
+
+      case state[:step]
+      when :title
+        state[:event_data]['title'] = message.text
+        state[:step] = :description
+        bot.api.send_message(chat_id: message.chat.id, text: "📝 Enter **Description** (or type 'skip' for none):", parse_mode: 'Markdown')
+        
+      when :description
+        desc = message.text
+        state[:event_data]['description'] = (desc.downcase == 'skip') ? nil : desc
+        state[:step] = :start_time
+        bot.api.send_message(chat_id: message.chat.id, text: "🕒 Enter **Start Time** (YYYY-MM-DD HH:MM):", parse_mode: 'Markdown')
+        
+      when :start_time
+        begin
+          time = Time.parse(message.text)
+          state[:event_data]['start_time'] = time.utc.iso8601
+          state[:step] = :end_time
+          bot.api.send_message(chat_id: message.chat.id, text: "🕓 Enter **End Time** (YYYY-MM-DD HH:MM):", parse_mode: 'Markdown')
+        rescue ArgumentError
+          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Please use YYYY-MM-DD HH:MM:")
+        end
+        
+      when :end_time
+        begin
+          time = Time.parse(message.text)
+          end_time = time.utc.iso8601
+          
+          # Validate end time > start time
+          start_time = Time.parse(state[:event_data]['start_time'])
+          if time <= start_time
+             bot.api.send_message(chat_id: message.chat.id, text: "❌ End time must be after start time. Please try again:")
+             return
+          end
+
+          state[:event_data]['end_time'] = end_time
+          
+          # Try to create
+          result = @event_store.create(state[:event_data])
+          
+          if result
+            bot.api.send_message(chat_id: message.chat.id, text: "✅ Event *#{result['title']}* created successfully!", parse_mode: 'Markdown')
+          else
+            bot.api.send_message(chat_id: message.chat.id, text: "⚠️ Failed to create event (possibly duplicate title + time).")
+          end
+          
+          @user_states.delete(user_key)
+        rescue ArgumentError
+          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Please use YYYY-MM-DD HH:MM:")
+        end
+      end
+    end
+    
+    # --- Delete Event ---
+    
+    def handle_delete_event(bot, message, id)
+      if @event_store.delete(id)
+        bot.api.send_message(chat_id: message.chat.id, text: "✅ Event deleted successfully.")
+      else
+        bot.api.send_message(chat_id: message.chat.id, text: "❌ Event not found with ID: #{id}")
+      end
+    end
 
     def handle_unknown(bot, message)
-      response = "❓ Unknown command: #{message.text}\n\n" +
-                 "Use /help to see available commands."
-      bot.api.send_message(chat_id: message.chat.id, text: response)
+      if message.text.start_with?('/')
+        response = "❓ Unknown command: #{message.text}\n\n" +
+                   "Use /help to see available commands."
+        bot.api.send_message(chat_id: message.chat.id, text: response)
+      end
     end
 
     def format_time(iso_time)
@@ -243,6 +378,49 @@ module CalendarBot
       rescue
         iso_time
       end
+    end
+    
+    # --- Admin Verification ---
+    
+    def is_admin?(bot, message)
+      # Private chats: User is always authorized
+      return true if message.chat.type == 'private'
+      
+      user_id = message.from.id
+      chat_id = message.chat.id
+      cache_key = "#{chat_id}:#{user_id}"
+      
+      # Check cache (5 mins)
+      if @admin_cache[cache_key] && Time.now - @admin_cache[cache_key][:timestamp] < 300
+        return @admin_cache[cache_key][:is_admin]
+      end
+      
+      begin
+        member = bot.api.get_chat_member(chat_id: chat_id, user_id: user_id)
+        
+        # Handle various return types from the gem
+        status = if member.respond_to?(:result)
+                   member.result['status']
+                 elsif member.respond_to?(:status)
+                   member.status
+                 elsif member.is_a?(Hash)
+                   member['result']['status'] rescue member['status']
+                 else
+                   nil
+                 end
+        
+        is_admin = ['creator', 'administrator'].include?(status)
+        
+        @admin_cache[cache_key] = { is_admin: is_admin, timestamp: Time.now }
+        is_admin
+      rescue StandardError => e
+        @logger.error("Admin check failed: #{e.message}")
+        false
+      end
+    end
+    
+    def send_forbidden(bot, message)
+      bot.api.send_message(chat_id: message.chat.id, text: "⛔ You must be an admin to use this command.")
     end
   end
 end
