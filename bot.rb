@@ -207,14 +207,14 @@ module CalendarBot
       # Get all events
       all_events = @event_store.all_events
       
-      # Filter to upcoming events (next 2 months = 60 days)
+      # Filter to upcoming events (next 7 days)
       now = Time.now.utc
-      two_months_from_now = now + (60 * 24 * 60 * 60)
+      seven_days_from_now = now + (7 * 24 * 60 * 60)
       
       upcoming_events = all_events.select do |event|
         begin
           event_start = Time.parse(event['start_time']).utc
-          event_start >= now && event_start <= two_months_from_now
+          event_start >= now && event_start <= seven_days_from_now
         rescue ArgumentError
           false
         end
@@ -228,12 +228,12 @@ module CalendarBot
       
       if display_events.empty?
         response = "📅 *Upcoming Events*\n\n" +
-                   "No events scheduled for the next 2 months.\n\n" +
+                   "No events scheduled for the next 7 days.\n\n" +
                    "Use /import to add events from an ICS calendar."
         bot.api.send_message(chat_id: message.chat.id, text: response, parse_mode: 'Markdown')
       else
         # Send events one by one to avoid message length issues
-        header = "📅 Upcoming Events (next 2 months)\n\nShowing #{display_events.length} of #{upcoming_events.length} event#{upcoming_events.length == 1 ? '' : 's'}\n"
+        header = "📅 Upcoming Events (next 7 days)\n\nShowing #{display_events.length} of #{upcoming_events.length} event#{upcoming_events.length == 1 ? '' : 's'}\n"
         bot.api.send_message(chat_id: message.chat.id, text: header)
         
         display_events.each_with_index do |event, index|
