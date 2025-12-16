@@ -123,14 +123,6 @@ module CalendarBot
       lines << ""
       lines << "🕒 #{start_time}"
       lines << "   to #{end_time}"
-      
-      if event['description'] && !event['description'].empty?
-        lines << ""
-        desc = event['description'].strip
-        desc = desc[0..97] + '...' if desc.length > 100
-        lines << "📝 #{escape_markdown(desc)}"
-      end
-      
       lines << ""
       lines << "⏰ Reminder sent #{format_time_ago(reminder_time)}"
       

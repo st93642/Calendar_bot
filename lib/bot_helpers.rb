@@ -85,14 +85,6 @@ module CalendarBot
       time_range = format_time_range(event['start_time'], event['end_time'], timezone)
       lines << "🕒 #{escape_markdown(time_range)}"
       
-      # Description (if present and not nil)
-      if event['description'] && !event['description'].to_s.strip.empty?
-        desc = event['description'].to_s.strip
-        # Truncate to 100 chars
-        desc = desc[0..97] + '...' if desc.length > 100
-        lines << "📝 #{escape_markdown(desc)}"
-      end
-      
       # Origin (custom vs imported)
       if event['custom']
         lines << "🏷️  Custom event"

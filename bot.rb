@@ -273,17 +273,6 @@ module CalendarBot
           event_parts << "#{i + 1}. #{event['title']}"
           event_parts << "   ID: #{event['id']}"
           event_parts << "   🕒 #{format_time(event['start_time'])}"
-          
-          # Add description if present
-          if event['description'] && !event['description'].to_s.strip.empty?
-            desc = event['description'].to_s.strip
-            # Truncate descriptions to 100 chars or first sentence
-            if desc.length > 100
-              desc = desc[0..97] + "..."
-            end
-            event_parts << "   📝 #{desc}"
-          end
-          
           event_parts << "   🏷️  #{event['custom'] ? 'Custom' : 'Imported'}"
           
           event_text = event_parts.join("\n")
