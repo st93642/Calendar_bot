@@ -2,7 +2,7 @@ source 'https://rubygems.org'
 
 git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-ruby '3.2.3'
+ruby '3.4.7'
 
 gem 'telegram-bot-ruby', '~> 0.19.0'
 gem 'icalendar', '~> 2.7'
