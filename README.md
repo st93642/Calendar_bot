@@ -165,6 +165,7 @@ Calendar_bot/
 ├── bot.rb                      # Main bot file
 ├── lib/
 │   ├── event_store.rb         # Event storage and management
+│   ├── storage_adapter.rb     # Storage backend abstraction
 │   ├── ics_importer.rb        # ICS calendar import
 │   ├── bot_helpers.rb         # Formatting helpers
 │   └── broadcast_scheduler.rb # Reminder scheduler
@@ -174,8 +175,17 @@ Calendar_bot/
 ├── Gemfile                     # Ruby dependencies
 ├── Procfile                    # Heroku worker configuration
 ├── runtime.txt                 # Ruby version for Heroku
+├── STORAGE.md                  # Storage configuration guide
 └── .env.example               # Environment variable template
 ```
+
+## Storage Configuration
+
+The bot supports two storage backends:
+- **File-based storage** (default) - For local development
+- **Redis key-value storage** - For Heroku and production deployments
+
+See [STORAGE.md](STORAGE.md) for detailed configuration instructions.
 
 ## License
 
