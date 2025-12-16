@@ -174,7 +174,7 @@ module CalendarBot
       response = "Welcome to Calendar Bot! 📅\n\n" +
                  "This bot can help you manage calendar events.\n\n" +
                  "Available commands:\n" +
-                 "/calendar - Show upcoming events (next 2 months)\n" +
+                 "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
                  "/add_event - Add a new custom event\n" +
                  "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
@@ -186,7 +186,7 @@ module CalendarBot
 
     def handle_help(bot, message)
       response = "📅 Calendar Bot Commands:\n\n" +
-                 "/calendar - Show upcoming events (next 2 months)\n" +
+                 "/calendar - Show upcoming events (next 7 days)\n" +
                  "/events - List all events\n" +
                  "/add_event - Add a new custom event (Interactive)\n" +
                  "/import <URL> - Import ICS calendar from URL (Admin only)\n" +
@@ -194,7 +194,7 @@ module CalendarBot
                  "/broadcast_status - Check scheduler status (Admin only)\n" +
                  "/broadcast_check - Force scheduler check (Admin only)\n" +
                  "/help - Show this help message\n\n" +
-                 "💡 The /calendar command shows events happening in the next 2 months, limited to 10 entries.\n\n" +
+                 "💡 The /calendar command shows events happening in the next 7 days, limited to 5 entries.\n\n" +
                  "Current events: #{@event_store.count}"
       bot.api.send_message(chat_id: message.chat.id, text: response)
     end
