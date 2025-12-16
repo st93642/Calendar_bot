@@ -1,0 +1,25 @@
+/.bundle/
+/vendor/bundle/
+Gemfile.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Event data storage
+events.json
+data/
+storage/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+log/
