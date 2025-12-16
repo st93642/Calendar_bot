@@ -75,7 +75,14 @@ module Config
         require 'redis'
         redis_url = REDIS_URL || 'redis://localhost:6379/0'
         logger.info("Connecting to Redis at #{redis_url.gsub(/:[^:@]+@/, ':***@')}")
-        Redis.new(url: redis_url)
+        
+        # Configure SSL for Heroku Redis
+        redis_options = { url: redis_url }
+        if redis_url.start_with?('rediss://')
+          redis_options[:ssl_params] = { verify_mode: OpenSSL::SSL::VERIFY_NONE }
+        end
+        
+        Redis.new(redis_options)
       rescue LoadError
         logger.error("Redis gem not available. Install it with: gem install redis")
         nil
