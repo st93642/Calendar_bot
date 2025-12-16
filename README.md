@@ -1,8 +1,15 @@
-# EventStore & IcsImporter Implementation
+# Telegram Calendar Bot
 
-This implementation provides a complete EventStore class for reading/writing events.json with thread-safe access, and an IcsImporter service for importing ICS calendar data with deduplication and merge capabilities.
+A Telegram bot for managing calendar events with ICS import capabilities and user-friendly commands.
 
 ## Features
+
+### Telegram Bot Commands
+- **`/start`** - Welcome message and command overview
+- **`/help`** - Detailed help and command descriptions
+- **`/calendar`** - Show upcoming events (next 7 days, max 10 entries)
+- **`/events`** - List all events in storage
+- **`/import <URL>`** - Import ICS calendar from URL
 
 ### EventStore Class
 - **Thread-safe JSON storage** using Mutex synchronization
@@ -22,6 +29,16 @@ This implementation provides a complete EventStore class for reading/writing eve
 - **Event validation** and error handling
 - **Merge integration** with EventStore for seamless updates
 - **Graceful error handling** for network and parsing failures
+
+### Calendar Command Features
+- **Smart filtering** - Shows only future events within next 7 days
+- **Pagination** - Displays up to 10 events with overflow indicator
+- **Rich formatting** - Title, time range, description, and origin for each event
+- **Markdown escaping** - Proper handling of special characters for Telegram
+- **Timezone support** - Infrastructure for per-user timezone preferences (defaults to UTC)
+- **Empty state** - Graceful handling when no upcoming events exist
+
+See [CALENDAR_COMMAND.md](CALENDAR_COMMAND.md) for detailed documentation.
 
 ## Event Schema
 

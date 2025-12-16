@@ -11,6 +11,8 @@ Gemfile.lock
 events.json
 data/
 storage/
+test_*.json
+spec/test_*.json
 
 # IDEs
 .vscode/
