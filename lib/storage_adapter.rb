@@ -56,9 +56,10 @@ module CalendarBot
     private
 
     def ensure_storage_exists
-      Config.ensure_storage_directory
+      dir = File.dirname(@storage_path)
+      Dir.mkdir(dir) unless Dir.exist?(dir)
       unless File.exist?(@storage_path)
-        write_events([])
+        File.write(@storage_path, '[]')
       end
     end
   end
