@@ -126,17 +126,9 @@ module CalendarBot
       when '/help'
         handle_help(bot, message)
       when '/calendar'
-        if is_admin?(bot, message)
-          handle_calendar(bot, message)
-        else
-          send_forbidden(bot, message)
-        end
+        handle_calendar(bot, message)
       when '/events'
-        if is_admin?(bot, message)
-          handle_list_events(bot, message)
-        else
-          send_forbidden(bot, message)
-        end
+        handle_list_events(bot, message)
       when '/import'
         handle_import_help(bot, message)
       when /^(\/import\s+)(https?:\/\/.+)/
@@ -153,17 +145,13 @@ module CalendarBot
           send_forbidden(bot, message)
         end
       when '/add_event'
-        if is_admin?(bot, message)
-          # Delete the command message to keep conversation private
-          begin
-            bot.api.delete_message(chat_id: message.chat.id, message_id: message.message_id)
-          rescue => e
-            @logger.warn("Could not delete add_event message: #{e.message}")
-          end
-          handle_add_event(bot, message)
-        else
-          send_forbidden(bot, message)
+        # Delete the command message to keep conversation private
+        begin
+          bot.api.delete_message(chat_id: message.chat.id, message_id: message.message_id)
+        rescue => e
+          @logger.warn("Could not delete add_event message: #{e.message}")
         end
+        handle_add_event(bot, message)
       when /^(\/delete_event\s+)(.+)/
         id = $2.strip
         if is_admin?(bot, message)
@@ -289,9 +277,9 @@ module CalendarBot
           # Add description if present
           if event['description'] && !event['description'].to_s.strip.empty?
             desc = event['description'].to_s.strip
-            # Truncate descriptions to keep messages short and readable
-            if desc.length > 200
-              desc = desc[0..197] + "..."
+            # Truncate descriptions to 100 chars or first sentence
+            if desc.length > 100
+              desc = desc[0..97] + "..."
             end
             event_parts << "   📝 #{desc}"
           end

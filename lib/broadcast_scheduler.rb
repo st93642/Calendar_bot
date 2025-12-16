@@ -127,7 +127,7 @@ module CalendarBot
       if event['description'] && !event['description'].empty?
         lines << ""
         desc = event['description'].strip
-        desc = desc[0..200] + '...' if desc.length > 200
+        desc = desc[0..97] + '...' if desc.length > 100
         lines << "📝 #{escape_markdown(desc)}"
       end
       
