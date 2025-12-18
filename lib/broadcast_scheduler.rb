@@ -99,7 +99,7 @@ module CalendarBot
         # Check if we haven't sent this reminder yet
         last_broadcast = get_last_broadcast_time(event_id)
         
-        if last_broadcast.nil? || (reminder_time > last_broadcast)
+        if last_broadcast.nil? || (reminder_time.to_i > last_broadcast)
           send_broadcast_reminder(event, reminder_time)
           set_last_broadcast_time(event_id, now)
         end
