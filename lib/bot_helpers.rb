@@ -30,14 +30,14 @@ module CalendarBot
           require 'tzinfo'
           tz = TZInfo::Timezone.get(timezone)
           time = tz.to_local(time.utc)
-          time.strftime("%b %d, %Y at %I:%M %p %Z")
+          time.strftime("%d/%b/%Y at %I:%M %p %Z")
         rescue TZInfo::InvalidTimezoneIdentifier, LoadError
           # Fall back to UTC if timezone is invalid or tzinfo not available
-          time.utc.strftime("%b %d, %Y at %I:%M %p UTC")
+          time.utc.strftime("%d/%b/%Y at %I:%M %p UTC")
         end
       else
         # Default to UTC
-        time.utc.strftime("%b %d, %Y at %I:%M %p UTC")
+        time.utc.strftime("%d/%b/%Y at %I:%M %p UTC")
       end
     rescue ArgumentError => e
       # If parsing fails, return the original string
@@ -58,9 +58,9 @@ module CalendarBot
           
           # If same day, show date once
           if start.to_date == finish.to_date
-            "#{start.strftime('%b %d, %Y')} • #{start.strftime('%I:%M %p')} - #{finish.strftime('%I:%M %p %Z')}"
+            "#{start.strftime('%d/%b/%Y')} • #{start.strftime('%I:%M %p')} - #{finish.strftime('%I:%M %p %Z')}"
           else
-            "#{start.strftime('%b %d at %I:%M %p')} - #{finish.strftime('%b %d at %I:%M %p %Z')}"
+            "#{start.strftime('%d/%b at %I:%M %p')} - #{finish.strftime('%d/%b at %I:%M %p %Z')}"
           end
         rescue TZInfo::InvalidTimezoneIdentifier, LoadError
           # Fall back to UTC
@@ -158,9 +158,9 @@ module CalendarBot
       
       # If same day, show date once
       if start_utc.to_date == finish_utc.to_date
-        "#{start_utc.strftime('%b %d, %Y')} • #{start_utc.strftime('%I:%M %p')} - #{finish_utc.strftime('%I:%M %p UTC')}"
+        "#{start_utc.strftime('%d/%b/%Y')} • #{start_utc.strftime('%I:%M %p')} - #{finish_utc.strftime('%I:%M %p UTC')}"
       else
-        "#{start_utc.strftime('%b %d at %I:%M %p')} - #{finish_utc.strftime('%b %d at %I:%M %p UTC')}"
+        "#{start_utc.strftime('%d/%b at %I:%M %p')} - #{finish_utc.strftime('%d/%b at %I:%M %p UTC')}"
       end
     end
   end
