@@ -661,7 +661,7 @@ module CalendarBot
     def format_time(iso_time)
       begin
         time = Time.parse(iso_time)
-        time.strftime("%Y-%m-%d %H:%M")
+        time.strftime("%d/%b/%Y")
       rescue
         iso_time
       end
