@@ -35,7 +35,7 @@ RSpec.describe CalendarBot::BotHelpers do
       time_str = '2024-12-25T10:30:00Z'
       formatted = format_timestamp(time_str)
       
-      expect(formatted).to include('Dec 25, 2024')
+      expect(formatted).to include('25/Dec/2024')
       expect(formatted).to include('10:30 AM UTC')
     end
 
@@ -52,7 +52,7 @@ RSpec.describe CalendarBot::BotHelpers do
       
       result = format_time_range(start_time, end_time)
       
-      expect(result).to include('Dec 25, 2024')
+      expect(result).to include('25/Dec/2024')
       expect(result).to include('10:00 AM')
       expect(result).to include('11:30 AM')
     end
@@ -63,8 +63,8 @@ RSpec.describe CalendarBot::BotHelpers do
       
       result = format_time_range(start_time, end_time)
       
-      expect(result).to include('Dec 25')
-      expect(result).to include('Dec 26')
+      expect(result).to include('25/Dec')
+      expect(result).to include('26/Dec')
     end
 
     it 'handles invalid times gracefully' do
