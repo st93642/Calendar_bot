@@ -30,14 +30,14 @@ module CalendarBot
           require 'tzinfo'
           tz = TZInfo::Timezone.get(timezone)
           time = tz.to_local(time.utc)
-          time.strftime("%d/%b/%Y")
+          time.strftime("%d/%b/%Y %H:%M")
         rescue TZInfo::InvalidTimezoneIdentifier, LoadError
           # Fall back to UTC if timezone is invalid or tzinfo not available
-          time.utc.strftime("%d/%b/%Y")
+          time.utc.strftime("%d/%b/%Y %H:%M")
         end
       else
         # Default to UTC
-        time.utc.strftime("%d/%b/%Y")
+        time.utc.strftime("%d/%b/%Y %H:%M")
       end
     rescue ArgumentError => e
       # If parsing fails, return the original string
@@ -56,11 +56,11 @@ module CalendarBot
           start = tz.to_local(start.utc)
           finish = tz.to_local(finish.utc)
           
-          # If same day, show date once
+          # If same day, show date once with start and end times
           if start.to_date == finish.to_date
-            start.strftime('%d/%b/%Y')
+            "#{start.strftime('%d/%b/%Y')} - #{start.strftime('%H:%M')} to #{finish.strftime('%H:%M')}"
           else
-            "#{start.strftime('%d/%b/%Y')} - #{finish.strftime('%d/%b/%Y')}"
+            "#{start.strftime('%d/%b/%Y %H:%M')} - #{finish.strftime('%d/%b/%Y %H:%M')}"
           end
         rescue TZInfo::InvalidTimezoneIdentifier, LoadError
           # Fall back to UTC
@@ -156,11 +156,11 @@ module CalendarBot
       start_utc = start.utc
       finish_utc = finish.utc
       
-      # If same day, show date once
+      # If same day, show date once with start and end times
       if start_utc.to_date == finish_utc.to_date
-        start_utc.strftime('%d/%b/%Y')
+        "#{start_utc.strftime('%d/%b/%Y')} - #{start_utc.strftime('%H:%M')} to #{finish_utc.strftime('%H:%M')}"
       else
-        "#{start_utc.strftime('%d/%b/%Y')} - #{finish_utc.strftime('%d/%b/%Y')}"
+        "#{start_utc.strftime('%d/%b/%Y %H:%M')} - #{finish_utc.strftime('%d/%b/%Y %H:%M')}"
       end
     end
   end
