@@ -204,8 +204,8 @@ module CalendarBot
       # For now, we'll use UTC as default
       timezone = nil
       
-      # Track message IDs for auto-deletion
-      message_ids = []
+      # Track message IDs for auto-deletion (include the user's trigger command too)
+      message_ids = [message.message_id]
       
       # Get all events
       all_events = @event_store.all_events
@@ -270,8 +270,8 @@ module CalendarBot
     def handle_list_events(bot, message)
       events = @event_store.all_events
       
-      # Track message IDs for auto-deletion
-      message_ids = []
+      # Track message IDs for auto-deletion (include the user's trigger command too)
+      message_ids = [message.message_id]
       
       if events.empty?
         response = "No events found. Add some events or import an ICS calendar."
