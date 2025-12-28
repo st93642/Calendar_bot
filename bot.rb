@@ -442,7 +442,7 @@ module CalendarBot
           bot.api.edit_message_text(
             chat_id: query.message.chat.id,
             message_id: query.message.message_id,
-            text: "🕒 Enter **#{step_name.capitalize} Time** (YYYY-MM-DD HH:MM):",
+            text: "🕒 Enter **#{step_name.capitalize} Time** (DD MM YY HH MM):",
             parse_mode: 'Markdown'
           )
           state[:step] = state[:step] == :awaiting_start_time ? :start_time : :end_time
@@ -578,18 +578,18 @@ module CalendarBot
         
       when :start_time
         begin
-          # Validate format includes date (not just time)
-          unless message.text.match?(/\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/)
-            bot.api.send_message(chat_id: message.chat.id, text: "❌ Please include date. Format: YYYY-MM-DD HH:MM\nExample: 2025-12-25 14:00")
+          # Validate format: DD MM YY HH MM
+          unless message.text.match?(/\d{2}\s+\d{2}\s+\d{2}\s+\d{2}\s+\d{2}/)
+            bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Use DD MM YY HH MM\nExample: 31 12 25 14 00")
             return
           end
           
-          time = Time.parse(message.text)
+          time = Time.strptime(message.text, "%d %m %y %H %M")
           state[:event_data]['start_time'] = time.utc.iso8601
           state[:step] = :end_time
-          bot.api.send_message(chat_id: message.chat.id, text: "🕓 Enter **End Time** (YYYY-MM-DD HH:MM):", parse_mode: 'Markdown')
+          bot.api.send_message(chat_id: message.chat.id, text: "🕓 Enter **End Time** (DD MM YY HH MM):", parse_mode: 'Markdown')
         rescue ArgumentError
-          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Please use YYYY-MM-DD HH:MM:")
+          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid date/time. Please use DD MM YY HH MM:")
         end
         
       when :awaiting_start_time
@@ -606,13 +606,13 @@ module CalendarBot
         
       when :end_time
         begin
-          # Validate format includes date (not just time)
-          unless message.text.match?(/\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}/)
-            bot.api.send_message(chat_id: message.chat.id, text: "❌ Please include date. Format: YYYY-MM-DD HH:MM\nExample: 2025-12-25 15:00")
+          # Validate format: DD MM YY HH MM
+          unless message.text.match?(/\d{2}\s+\d{2}\s+\d{2}\s+\d{2}\s+\d{2}/)
+            bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Use DD MM YY HH MM\nExample: 31 12 25 15 00")
             return
           end
           
-          time = Time.parse(message.text)
+          time = Time.strptime(message.text, "%d %m %y %H %M")
           end_time = time.utc.iso8601
           
           # Validate end time > start time
@@ -635,7 +635,7 @@ module CalendarBot
           
           @user_states.delete(user_key)
         rescue ArgumentError
-          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid format. Please use YYYY-MM-DD HH:MM:")
+          bot.api.send_message(chat_id: message.chat.id, text: "❌ Invalid date/time. Please use DD MM YY HH MM:")
         end
       end
     end
